@@ -1,112 +1,146 @@
 {
-    "Resources": {
-        "fileSlackerBotWorkflow": {
-            "Type": "AWS::Transfer::Workflow",
-            "Properties": {
-                "Steps": [
-                    {}
-                ]
-            }
-        },
-        "fileSlackerBotBucket": {
-            "Type": "AWS::S3::Bucket",
-            "Properties": {
-                "BucketName": {
-                    "Fn::Sub": "${AWS::StackName}-fileslack-${AWS::AccountId}"
-                },
-                "BucketEncryption": {
-                    "ServerSideEncryptionConfiguration": [
-                        {
-                            "ServerSideEncryptionByDefault": {
-                                "SSEAlgorithm": "aws:kms",
-                                "KMSMasterKeyID": "alias/aws/s3"
-                            }
-                        }
-                    ]
-                },
-                "PublicAccessBlockConfiguration": {
-                    "IgnorePublicAcls": true,
-                    "RestrictPublicBuckets": true
-                }
-            }
-        },
-        "fileSlackerBotBucketBucketPolicy": {
-            "Type": "AWS::S3::BucketPolicy",
-            "Properties": {
-                "Bucket": {
-                    "Ref": "fileSlackerBotBucket"
-                },
-                "PolicyDocument": {
-                    "Id": "RequireEncryptionInTransit",
-                    "Version": "2012-10-17",
-                    "Statement": [
-                        {
-                            "Principal": "*",
-                            "Action": "*",
-                            "Effect": "Deny",
-                            "Resource": [
-                                {
-                                    "Fn::GetAtt": [
-                                        "fileSlackerBotBucket",
-                                        "Arn"
-                                    ]
-                                },
-                                {
-                                    "Fn::Sub": "${fileSlackerBotBucket.Arn}/*"
-                                }
-                            ],
-                            "Condition": {
-                                "Bool": {
-                                    "aws:SecureTransport": "false"
-                                }
-                            }
-                        }
-                    ]
-                }
-            }
-        },
-        "fileSlackerBotFunction": {
-            "Type": "AWS::Serverless::Function",
-            "Properties": {
-                "Description": {
-                    "Fn::Sub": [
-                        "Stack ${AWS::StackName} Function ${ResourceName}",
-                        {
-                            "ResourceName": "fileSlackerBotFunction"
-                        }
-                    ]
-                },
-                "CodeUri": "src/Function",
-                "Handler": "handler.handler",
-                "Runtime": "python3.12",
-                "MemorySize": 3008,
-                "Timeout": 30,
-                "Tracing": "Active",
-                "Events": {
-                    "fileSlackerBotBucket": {
-                        "Type": "S3",
-                        "Properties": {
-                            "Bucket": {
-                                "Ref": "fileSlackerBotBucket"
-                            },
-                            "Events": [
-                                "s3:ObjectCreated:*",
-                                "s3:ObjectRemoved:*"
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "fileSlackerBotFunctionLogGroup": {
-            "Type": "AWS::Logs::LogGroup",
-            "DeletionPolicy": "Retain",
-            "Properties": {
-                "LogGroupName": {
-                    "Fn::Sub": "/aws/lambda/${fileSlackerBotFunction}"
-                }
-            }
-        }
-    },
-    "Transform": "AWS::Serverless-2016-10-31"
+	"Resources": {
+		"fileSlackerBotWorkflow": {
+			"Type": "AWS::Transfer::Workflow",
+			"Properties": {
+				"Steps": [
+					{}
+				]
+			}
+		},
+		"fileSlackerBotBucket": {
+			"Type": "AWS::S3::Bucket",
+			"Properties": {
+				"BucketName": {
+					"Fn::Sub": "${AWS::StackName}-fileslack-${AWS::AccountId}"
+				},
+				"BucketEncryption": {
+					"ServerSideEncryptionConfiguration": [
+						{
+							"ServerSideEncryptionByDefault": {
+								"SSEAlgorithm": "aws:kms",
+								"KMSMasterKeyID": "alias/aws/s3"
+							}
+						}
+					]
+				},
+				"PublicAccessBlockConfiguration": {
+					"IgnorePublicAcls": true,
+					"RestrictPublicBuckets": true
+				}
+			}
+		},
+		"fileSlackerBotBucketBucketPolicy": {
+			"Type": "AWS::S3::BucketPolicy",
+			"Properties": {
+				"Bucket": {
+					"Ref": "fileSlackerBotBucket"
+				},
+				"PolicyDocument": {
+					"Id": "RequireEncryptionInTransit",
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Principal": "*",
+							"Action": "*",
+							"Effect": "Deny",
+							"Resource": [
+								{
+									"Fn::GetAtt": [
+										"fileSlackerBotBucket",
+										"Arn"
+									]
+								},
+								{
+									"Fn::Sub": "${fileSlackerBotBucket.Arn}/*"
+								}
+							],
+							"Condition": {
+								"Bool": {
+									"aws:SecureTransport": "false"
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		"fileSlackerBotFunction": {
+			"Type": "AWS::Serverless::Function",
+			"Properties": {
+				"Description": {
+					"Fn::Sub": [
+						"Stack ${AWS::StackName} Function ${ResourceName}",
+						{
+							"ResourceName": "fileSlackerBotFunction"
+						}
+					]
+				},
+				"CodeUri": "src/Function",
+				"Handler": "handler.handler",
+				"Runtime": "python3.12",
+				"MemorySize": 3008,
+				"Timeout": 30,
+				"Tracing": "Active",
+				"Events": {
+					"fileSlackerBotBucket": {
+						"Type": "S3",
+						"Properties": {
+							"Bucket": {
+								"Ref": "fileSlackerBotBucket"
+							},
+							"Events": [
+								"s3:ObjectCreated:*",
+								"s3:ObjectRemoved:*"
+							]
+						}
+					}
+				}
+			}
+		},
+		"fileSlackerBotFunctionLogGroup": {
+			"Type": "AWS::Logs::LogGroup",
+			"DeletionPolicy": "Retain",
+			"Properties": {
+				"LogGroupName": {
+					"Fn::Sub": "/aws/lambda/${fileSlackerBotFunction}"
+				}
+			}
+		},
+		"Connector": {
+			"Type": "AWS::AppFlow::Connector",
+			"Properties": {
+				"ConnectorProvisioningType": "<String>",
+				"ConnectorProvisioningConfig": {}
+			}
+		},
+		"Flow": {
+			"Type": "AWS::AppFlow::Flow",
+			"Properties": {
+				"Tasks": [
+					{
+						"SourceFields": [
+							"<String>"
+						],
+						"TaskType": "<String>"
+					}
+				],
+				"FlowName": "<String>",
+				"TriggerConfig": {
+					"TriggerType": "<String>"
+				},
+				"DestinationFlowConfigList": [
+					{
+						"ConnectorType": "<String>",
+						"DestinationConnectorProperties": {}
+					}
+				],
+				"SourceFlowConfig": {
+					"SourceConnectorProperties": {},
+					"ConnectorType": "<String>"
+				}
+			}
+		}
+	},
+	"Transform": "AWS::Serverless-2016-10-31"
 }
