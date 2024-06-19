@@ -16,13 +16,35 @@ Using  add the fileSlackerBot application and configure ...
     - Install to Workspace
 3. Enable "Socket Mode"
     - Created app token ("xapp..."), fileSlackerBotAppToken and keep for later use
-5. Enable "Event Subscriptions"
+4. Enable "Event Subscriptions"
     - "Subscribe to Bot Events"
         - Add "app_mention" Bot User Event
-6. IDE - install python slack_bolt pip
+5. IDE - install python slack_bolt pip
     - a slack development framework
     - https://slack.dev/bolt-python/tutorial/getting-started
     - Use the "xoxb" bot token from the slack app "OAuth & Permissions"
+
+### Lambda App
+
+1. I think I need to use the HTTP Gateway URL in the Slack App?
+
+#### Packaging for deployment  
+Note that packages only need to be installed in the package dir once.
+
+```
+$ mkdir package  
+$ pip3 install --target ./package boto3  
+$ pip3 install --target ./package slack_bolt  
+  
+$ cd package  
+$ zip -r ../fileSlacker_package.zip .  
+$ cd ..  
+$ zip fileSlacker_package.zip fileSlacker.py  
+
+$ tar -cvzf fileSlacker.zip fileSlacker.py
+$ cd package
+$ tar -rvzf ../fileSlacker.zip .
+```
 
 ## Notes
 

@@ -1,5 +1,6 @@
 .idea/
 fileSlackerBot.iml
+package/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
