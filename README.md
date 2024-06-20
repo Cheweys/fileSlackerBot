@@ -29,21 +29,18 @@ Using  add the fileSlackerBot application and configure ...
 1. I think I need to use the HTTP Gateway URL in the Slack App?
 
 #### Packaging for deployment  
-Note that packages only need to be installed in the package dir once.
+Note that packages only need to be installed in the package dir once. Also, the zip command
+may very well be problematic on Windows.
 
 ```
 $ mkdir package  
 $ pip3 install --target ./package boto3  
 $ pip3 install --target ./package slack_bolt  
-  
+ 
 $ cd package  
-$ zip -r ../fileSlacker_package.zip .  
+$ zip -r ../fileSlacker.zip .  
 $ cd ..  
-$ zip fileSlacker_package.zip fileSlacker.py  
-
-$ tar -cvzf fileSlacker.zip fileSlacker.py
-$ cd package
-$ tar -rvzf ../fileSlacker.zip .
+$ zip fileSlacker.zip fileSlacker.py  
 ```
 
 ## Notes
