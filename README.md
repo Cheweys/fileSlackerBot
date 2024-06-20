@@ -29,19 +29,20 @@ Using  add the fileSlackerBot application and configure ...
 1. I think I need to use the HTTP Gateway URL in the Slack App?
 
 #### Packaging for deployment  
-Note that packages only need to be installed in the package dir once. Also, the zip command
-may very well be problematic on Windows.
+Use [Lambda Layers](https://docs.aws.amazon.com/lambda/latest/dg/chapter-layers.html?icmpid=docs_lambda_help) 
+to deploy the python dependencies. The following can be used to create the zip archive to upload ...  
+```
+$ mkdir lambda_layers
+$ cd lambda_layers
+$ mkdir python
+$ cd python
+$ pip install boto3 -t ./
+$ pip install slack_bolt -t ./
+$ cd ..
+$ zip -r python_modules.zip .
+```
 
-```
-$ mkdir package  
-$ pip3 install --target ./package boto3  
-$ pip3 install --target ./package slack_bolt  
- 
-$ cd package  
-$ zip -r ../fileSlacker.zip .  
-$ cd ..  
-$ zip fileSlacker.zip fileSlacker.py  
-```
+The use of layers will keep your deployment small so inline editing in Lambda is still available.
 
 ## Notes
 
