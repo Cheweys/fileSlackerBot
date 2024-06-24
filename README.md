@@ -36,8 +36,9 @@ $ mkdir lambda_layers
 $ cd lambda_layers
 $ mkdir python
 $ cd python
-$ pip install boto3 -t ./
-$ pip install slack_bolt -t ./
+$ pip3 install boto3 -t ./
+$ pip3 install slack_bolt -t ./
+$ pip3 install requests -t ./
 $ cd ..
 $ zip -r python_modules.zip .
 ```
