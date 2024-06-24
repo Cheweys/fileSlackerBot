@@ -1,6 +1,7 @@
 import json
 import logging
 import requests
+import os
 from botocore.client import Config
 import boto3
 from io import BytesIO
@@ -9,9 +10,11 @@ from botocore.exceptions import ClientError
 import mimetypes
 
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 S3_FILE_BUCKET = 'file-slacker-bucket'
+
+
 # S3_METADATA_FOLDER
 
 def lambda_handler(event, context):
@@ -41,10 +44,13 @@ def lambda_handler(event, context):
 def upload_file(remote_url, bucket, file_name, content_type):
     s3 = boto3.client('s3', 'us-east-2')
     try:
-        slack_file_response = requests.get(remote_url, stream=True)
+        slack_token = os.environ["SLACK_BOT_TOKEN"]
+        slack_file_response = requests.get(
+            remote_url,
+            headers={'Content-Type':'text', 'Authorization': f'Bearer {slack_token}'},
+            stream=True)
         if slack_file_response.status_code == 200:
             slack_file = slack_file_response.content
-            # do I need to base64 encode the file before sending to s3?
             binary_stream = BytesIO(slack_file)
             s3.upload_fileobj(
                 binary_stream,
@@ -66,7 +72,7 @@ def upload_file(remote_url, bucket, file_name, content_type):
     except FileNotFoundError as e:
         logging.error(f"The file was not found\n{e}")
         raise
-    except NoCredentialsError as e :
+    except NoCredentialsError as e:
         logging.error(f"Credentials not available\n{e}")
         raise
     except ClientError as e:
