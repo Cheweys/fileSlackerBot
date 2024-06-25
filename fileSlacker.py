@@ -10,7 +10,7 @@ from botocore.exceptions import ClientError
 import mimetypes
 
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 S3_FILE_BUCKET = 'file-slacker-bucket'
 
