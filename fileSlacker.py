@@ -3,17 +3,15 @@ import logging
 import requests
 import os
 import boto3
-import uuid
 from io import BytesIO
 from botocore.exceptions import NoCredentialsError
 from botocore.exceptions import ClientError
-import mimetypes
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 S3_FILE_BUCKET = 'file-slacker-bucket'
-S3_METADATA_FOLDER = 'file-slacker-bucket/metadata'
+S3_METADATA_FOLDER = 'meta'
 
 s3 = boto3.client('s3', 'us-east-2')
 
@@ -24,7 +22,7 @@ def lambda_handler(event, context):
         logger.debug(f'## CONTEXT\n{str(context)}')
         slack_metadata = build_slack_metadata(event)
 
-        # uncomment to verify the Slack Request URL (i.e. for new slack app)
+        # uncomment to verify the Slack Request URL from a new Slack app
         '''
         if slack_event['type'] == 'url_verification':
             return {
@@ -33,9 +31,10 @@ def lambda_handler(event, context):
             }
         '''
 
-        upload_file_to_s3(slack_metadata['url_private'], S3_FILE_BUCKET, slack_metadata['s3_key'], slack_metadata['mimetype'])
+        upload_file_to_s3(slack_metadata['url_private'], slack_metadata['s3_key'], slack_metadata['mimetype'])
 
-        # TODO: push metadata to DB
+        upload_metadata_to_s3(slack_metadata)
+
         return {
             'statusCode': 200,
         }
@@ -46,7 +45,7 @@ def lambda_handler(event, context):
         }
 
 
-def upload_file_to_s3(remote_url, bucket, file_name, content_type):
+def upload_file_to_s3(remote_url, file_name, content_type):
     try:
         slack_token = os.environ["SLACK_BOT_TOKEN"]
         slack_file_response = requests.get(
@@ -58,7 +57,7 @@ def upload_file_to_s3(remote_url, bucket, file_name, content_type):
             binary_stream = BytesIO(slack_file)
             s3.upload_fileobj(
                 binary_stream,
-                bucket,
+                S3_FILE_BUCKET,
                 file_name,
                 ExtraArgs={'ContentType': content_type})
         else:
@@ -70,30 +69,30 @@ def upload_file_to_s3(remote_url, bucket, file_name, content_type):
         logging.error(f"Credentials not available\n{e}")
         raise
     except ClientError as e:
-        logging.error(f"A Client Error occurred\n{e}")
+        logging.error(f"A Client Error occurred with saving the file to S3\n{e}")
         raise
 
 
-def upload_metadata_to_s3():
+def upload_metadata_to_s3(metadata):
     try:
-        '''
-        s3.upload(
-            binary_stream,
-            bucket,
-            file_name,
-            ExtraArgs={'ContentType': content_type})
-        '''
+        metadata_json = json.dumps(metadata)
+        response = s3.put_object(
+            Body=metadata_json,
+            Bucket=S3_FILE_BUCKET,
+            Key=f'{S3_METADATA_FOLDER}/{metadata['id']}.json',
+            ContentType='application/json'
+        )
     except NoCredentialsError as e:
         logging.error(f"Credentials not available\n{e}")
         raise
     except ClientError as e:
-        logging.error(f"A Client Error occurred\n{e}")
+        logging.error(f"A Client Error occurred with saving the metadata to S3\n{e}")
         raise
 
 
 def build_slack_metadata(event):
     slack_json = event['body']
-    logger.info(f"SLACK JSON:\n{slack_json}")
+    logger.debug(f"SLACK JSON:\n{slack_json}")
     slack_event = json.loads(slack_json)
     slack_event_file = slack_event['event']['files'][0]
     md = {
@@ -124,4 +123,5 @@ def build_slack_metadata(event):
                 break
     except KeyError:
         logger.debug('No "user_text" was found.')
-    logger.info(json.dumps(md, indent=4))
+    logger.info(f'METADATA JSON:\nf{json.dumps(md, indent=4)}')
+    return md
