@@ -31,7 +31,7 @@ def lambda_handler(event, context):
             }
         '''
 
-        upload_file_to_s3(slack_metadata['url_private'], slack_metadata['s3_key'], slack_metadata['mimetype'])
+        upload_file_to_s3(slack_metadata)
 
         upload_metadata_to_s3(slack_metadata)
 
@@ -45,11 +45,11 @@ def lambda_handler(event, context):
         }
 
 
-def upload_file_to_s3(remote_url, file_name, content_type):
+def upload_file_to_s3(metadata):
     try:
         slack_token = os.environ["SLACK_BOT_TOKEN"]
         slack_file_response = requests.get(
-            remote_url,
+            metadata['url_private'],
             headers={'Content-Type': 'text', 'Authorization': f'Bearer {slack_token}'},
             stream=True)
         if slack_file_response.status_code == 200:
@@ -58,18 +58,18 @@ def upload_file_to_s3(remote_url, file_name, content_type):
             s3.upload_fileobj(
                 binary_stream,
                 S3_FILE_BUCKET,
-                file_name,
-                ExtraArgs={'ContentType': content_type})
+                metadata['s3_key'],
+                ExtraArgs={'ContentType': f'{metadata['mimetype']}'})
         else:
             raise Exception(f"Unsuccessful HTTP status while fetching Slack file: {slack_file_response.status_code}")
     except FileNotFoundError as e:
-        logging.error(f"The file, {file_name}, was not found\n{e}")
+        logging.error(f"The slack file was not found at {metadata['url_private']}\n{e}")
         raise
     except NoCredentialsError as e:
         logging.error(f"Credentials not available\n{e}")
         raise
     except ClientError as e:
-        logging.error(f"A Client Error occurred with saving the file to S3\n{e}")
+        logging.error(f"A Client Error occurred while saving the file, {metadata['name']}, to S3\n{e}")
         raise
 
 
@@ -107,7 +107,9 @@ def build_slack_metadata(event):
         'size': f'{slack_event_file['size']}',
         'url_private': f'{slack_event_file['url_private']}',
         'user_text': '',
-        's3_key': f'{slack_event_file['id']}.{slack_event_file['filetype']}'
+        's3_key': f'{slack_event_file['id']}.{slack_event_file['filetype']}',
+        'slack_orig_channel': f'{slack_event['event']['channel']}',
+        'slack_orig_ts': f'{slack_event['event']['ts']}'
     }
     try:
         blocks = slack_event['event']['blocks']
