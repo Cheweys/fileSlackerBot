@@ -26,7 +26,8 @@ Using  add the fileSlackerBot application and configure ...
 
 ### Lambda App
 
-1. I think I need to use the HTTP Gateway URL in the Slack App?
+1. I think I need to use the HTTP Gateway URL in the Slack App? **Hey?** *Yep!*
+2. 
 
 #### Packaging for deployment  
 Use [Lambda Layers](https://docs.aws.amazon.com/lambda/latest/dg/chapter-layers.html?icmpid=docs_lambda_help) 
@@ -39,6 +40,7 @@ $ cd python
 $ pip3 install boto3 -t ./
 $ pip3 install slack_bolt -t ./
 $ pip3 install requests -t ./
+$ pip3 install slack_sdk -t ./
 $ cd ..
 $ zip -r python_modules.zip .
 ```

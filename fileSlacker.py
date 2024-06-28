@@ -1,13 +1,14 @@
 import json
 import logging
 import requests
+import mimetypes
 import os
 import boto3
 from io import BytesIO
 from botocore.exceptions import NoCredentialsError
 from botocore.exceptions import ClientError
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 S3_FILE_BUCKET = 'file-slacker-bucket'
@@ -95,6 +96,7 @@ def build_slack_metadata(event):
     logger.debug(f"SLACK JSON:\n{slack_json}")
     slack_event = json.loads(slack_json)
     slack_event_file = slack_event['event']['files'][0]
+    file_extension = mimetypes.guess_extension(slack_event_file['mimetype'])
     md = {
         'id': f'{slack_event_file['id']}',
         'created': f'{slack_event_file['created']}',
@@ -102,12 +104,13 @@ def build_slack_metadata(event):
         'name': f'{slack_event_file['name']}',
         'mimetype': f'{slack_event_file['mimetype']}',
         'filetype': f'{slack_event_file['filetype']}',
+        'file_extension': f'{file_extension}',
         'user': f'{slack_event_file['user']}',
         'user_team': f'{slack_event_file['user_team']}',
         'size': f'{slack_event_file['size']}',
         'url_private': f'{slack_event_file['url_private']}',
         'user_text': '',
-        's3_key': f'{slack_event_file['id']}.{slack_event_file['filetype']}',
+        's3_key': f'{slack_event_file['id']}{file_extension}',
         'slack_orig_channel': f'{slack_event['event']['channel']}',
         'slack_orig_ts': f'{slack_event['event']['ts']}'
     }
