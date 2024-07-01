@@ -31,11 +31,11 @@ TODO: review the above
 
 ### fileSlacker
 
-TODO: Container Diagram
+![fileSlacker Container Diagram](docs/fileSlacker_container.drawio.png)
 
 ### fileStatsSlacker
 
-TODO: Container Diagram
+![fileStatsSlacker Container Diagram](docs/fileStatsSlacker_container.drawio.png)
 
 ## S3
 
