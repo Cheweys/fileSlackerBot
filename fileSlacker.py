@@ -1,13 +1,22 @@
 import json
 import logging
-import requests
 import mimetypes
 import os
-import boto3
 from io import BytesIO
-from botocore.exceptions import NoCredentialsError
+import boto3
+import requests
 from botocore.exceptions import ClientError
+from botocore.exceptions import NoCredentialsError
+from openai import OpenAI
 
+# to retrieve the file data from the Slack private URL set the following environment variables
+# SLACK_BOT_TOKEN
+# SLACK_SIGNING_SECRET
+
+# to access OpenAi set the following environment variable
+# OPENAI_API_KEY
+
+# set env var DEBUG_LOGGING_ENABLED to true or false
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -15,12 +24,26 @@ S3_FILE_BUCKET = 'file-slacker-bucket'
 S3_METADATA_FOLDER = 'meta'
 
 s3 = boto3.client('s3', 'us-east-2')
+open_ai = OpenAI()
+ENABLE_AI_ANALYSIS = True
 
 
 def lambda_handler(event, context):
+    """ The AWS Lambda Handler. This handles the events from Slack via the HTTP Gateway.
+    TODO: This method is currently doing too much. Since it's not acknowledging a
+    success within 3 seconds the Slack API is re-sending events. Should considering
+    an asynchronous call/event to another Lambda so we can return a success immediately."""
     try:
-        logger.debug(f'## EVENT\n{json.dumps(event)}')
-        logger.debug(f'## CONTEXT\n{str(context)}')
+        logger.debug(f'fileSlacker.lambda_handler -- event:\n{json.dumps(event)}')
+        logger.debug(f'fileSlacker.lambda_handler -- context:\n{str(context)}')
+
+        if checkForInvalidEvent(event):
+            # do nothing, just return success
+            logger.warning(f"invalid event: \n{str(event)}")
+            return {
+                'statusCode': 200,
+            }
+
         slack_metadata = build_slack_metadata(event)
 
         # uncomment to verify the Slack Request URL from a new Slack app
@@ -32,21 +55,32 @@ def lambda_handler(event, context):
             }
         '''
 
-        upload_file_to_s3(slack_metadata)
-
+        file = upload_file_to_s3(slack_metadata)
+        if ENABLE_AI_ANALYSIS:
+            analyzeUploadedFile(slack_metadata, file)
         upload_metadata_to_s3(slack_metadata)
-
-        return {
-            'statusCode': 200,
-        }
     except Exception as err:
         logger.error(f"An error occurred.\n{err}")
-        return {
-            'statusCode': 500
-        }
+
+
+def checkForInvalidEvent(event):
+    """ If we have a valid Slack-originated event, check if we already have processed the file in s3.
+     This still misses the scenario of the long processing time of the first event and sometime two
+     responses will show up in the thread, especially if the ai analyzing of files is enabled. """
+    slack_json = event['body']
+    slack_event = json.loads(slack_json)
+    if 'files' in slack_event['event']:
+        # check for existence of file in s3
+        results = s3.list_objects(Bucket=S3_FILE_BUCKET,
+                                  Prefix=f'{S3_METADATA_FOLDER}/{slack_event['event']['files'][0]['id']}.json')
+        # if Contents exist, then the file exists in s3
+        return 'Contents' in results
+    else:
+        return False
 
 
 def upload_file_to_s3(metadata):
+    """ Transfers the Slack user's attached file (via the Slack private URL) to an S3 bucket."""
     try:
         slack_token = os.environ["SLACK_BOT_TOKEN"]
         slack_file_response = requests.get(
@@ -61,6 +95,7 @@ def upload_file_to_s3(metadata):
                 S3_FILE_BUCKET,
                 metadata['s3_key'],
                 ExtraArgs={'ContentType': f'{metadata['mimetype']}'})
+            return slack_file
         else:
             raise Exception(f"Unsuccessful HTTP status while fetching Slack file: {slack_file_response.status_code}")
     except FileNotFoundError as e:
@@ -74,7 +109,108 @@ def upload_file_to_s3(metadata):
         raise
 
 
+def analyzeUploadedFile(metadata, file):
+    """ First grant temporary public access to the uploaded file (via a presigned URL). Then request OpenAi to
+    analyze the file. Store the result in the metadata to be persisted to S3.
+    TODO: Look into improving the requests to analyze files to OpenAI """
+    presigned_url = generate_presigned_url(S3_FILE_BUCKET, metadata['s3_key'])
+    if metadata['mimetype'].startswith('image'):
+        ai_analysis = analyze_image("What’s in this image?", presigned_url)
+    else:
+        filename = metadata['name']
+        if not (filename.endswith(metadata['file_extension'])):
+            filename = metadata['name'] + metadata['file_extension']
+        if (filename.endswith('.csv')):
+            filename = metadata['name'] + '.txt'
+            # TODO: We know the file extensions that will be processed from the OpenAI docs, so we could add .txt
+            # to any mimetype starting with text and not in this list of extensions.
+        ai_analysis = analyze_file("Analyze and describe the meaning behind this file.", file, filename)
+    metadata.update({'ai_analysis': ai_analysis})
+
+
+def analyze_image(request, url):
+    """ A simple approach to analyzing image content using OpenAI."""
+    response = open_ai.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": f"{request}"},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"{url}",
+                        },
+                    },
+                ],
+            }
+        ],
+        max_tokens=300,
+    )
+    logger.debug(f"Image analysis: {str(response.choices[0].message.content)}")
+    return str(response.choices[0].message.content)
+
+
+def analyze_file(request, working_file, filename):
+    """  Analyzing the content of text-like files using OpenAI."""
+    assistant = open_ai.beta.assistants.create(
+        name="Assistant to fileSlackerBot",
+        instructions="""You are an expert at analyzing the text within files. Use your knowledge base to summarize the 
+        meaning of the text within the given file.""",
+        model="gpt-4o",
+        tools=[{"type": "file_search"}]
+    )
+
+    # Upload the user provided file to OpenAI
+    message_file = open_ai.files.create(
+        file=(filename, working_file), purpose="assistants",
+    )
+
+    # Create a thread and attach the file to the message
+    thread = open_ai.beta.threads.create(
+        messages=[
+            {
+                "role": "user",
+                "content": request,
+                # Attach the new file to the message.
+                "attachments": [
+                    {"file_id": message_file.id, "tools": [{"type": "file_search"}]}
+                ],
+            }
+        ]
+    )
+
+    # The thread now has a vector store with that file in its tool resources.
+    logger.debug(thread.tool_resources.file_search)
+
+    # Use the create and poll SDK helper to create a run and poll the status of
+    # the run until it's in a terminal state.
+
+    run = open_ai.beta.threads.runs.create_and_poll(
+        thread_id=thread.id, assistant_id=assistant.id
+    )
+
+    messages = list(open_ai.beta.threads.messages.list(thread_id=thread.id, run_id=run.id))
+
+    message_content = messages[0].content[0].text
+    annotations = message_content.annotations
+    citations = []
+    for index, annotation in enumerate(annotations):
+        message_content.value = message_content.value.replace(annotation.text, f"[{index}]")
+        if file_citation := getattr(annotation, "file_citation", None):
+            cited_file = open_ai.files.retrieve(file_citation.file_id)
+            citations.append(f"[{index}] {cited_file.filename}")
+
+    response = message_content.value
+    response += "\n".join(citations)
+    return response
+
+
 def upload_metadata_to_s3(metadata):
+    """ Uploads metadata json to a folder, meta, in the S3 bucket. This metadata has the file key and
+    can be queried via Athena. """
+    logger.debug(f"fileSlacker.upload_metadata_to_s3 -- metadata: {json.dumps(metadata)}")
     try:
         metadata_json = json.dumps(metadata)
         response = s3.put_object(
@@ -92,6 +228,7 @@ def upload_metadata_to_s3(metadata):
 
 
 def build_slack_metadata(event):
+    """ Builds the metadata json to be stored in the meta folder of the s3 bucket. """
     slack_json = event['body']
     logger.debug(f"SLACK JSON:\n{slack_json}")
     slack_event = json.loads(slack_json)
@@ -112,7 +249,8 @@ def build_slack_metadata(event):
         'user_text': '',
         's3_key': f'{slack_event_file['id']}{file_extension}',
         'slack_orig_channel': f'{slack_event['event']['channel']}',
-        'slack_orig_ts': f'{slack_event['event']['ts']}'
+        'slack_orig_ts': f'{slack_event['event']['ts']}',
+        'ai_analysis': '_TODO_'
     }
     try:
         blocks = slack_event['event']['blocks']
@@ -127,6 +265,22 @@ def build_slack_metadata(event):
                         break
                 break
     except KeyError:
-        logger.debug('No "user_text" was found.')
-    logger.info(f'METADATA JSON:\nf{json.dumps(md, indent=4)}')
+        logger.warning("No additional text was found from the user. Nothing may have been entered.", e)
+    logger.debug(f'METADATA JSON:\nf{json.dumps(md, indent=4)}')
     return md
+
+
+def generate_presigned_url(bucket, key):
+    """ Create a temporary public-accessible URL for easy access by OpenAi. The ExpiresIn attribute is
+    in seconds. """
+    try:
+        url = s3.generate_presigned_url(ClientMethod='get_object',
+                                        Params={'Bucket': bucket,
+                                                'Key': key},
+                                        ExpiresIn=300
+                                        )
+        logger.debug("Got presigned URL: %s", url)
+    except ClientError as e:
+        logger.error(e)
+        raise
+    return url
