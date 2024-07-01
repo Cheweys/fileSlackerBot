@@ -1,10 +1,17 @@
 # fileSlackerBot
 
-## Slack Upload Files to AWS S3 via event to AWS Lambda
+![fileSlackerBot](docs/xtra/fileSlackerBot_icon.jpg)
 
-### Slack API App
+## Overview
+A project allowing for the Slack Upload of Files to AWS S3 via events to AWS Lambdas.
 
-Using  add the fileSlackerBot application and configure ...  
+![Context Diagram](docs/fileSlackerBot_context.drawio.png)
+
+## Slack API App
+
+TODO: Container Diagram
+
+Using  add the `fileSlackerBot` application and configure ...  
 
 1. Create a new slack app `fileSlackerBot` at [Slack APi - Apps](https://api.slack.com/apps/)
     - from scratch
@@ -17,41 +24,33 @@ Using  add the fileSlackerBot application and configure ...
 3. Enable "Event Subscriptions"
     - "Subscribe to Bot Events"
         - Add "app_mention" Bot User Event
-4. IDE - install python slack_bolt pip
-    - a slack development framework
-    - https://slack.dev/bolt-python/tutorial/getting-started
-    - Use the "xoxb" bot token from the slack app "OAuth & Permissions"
 
-### Lambda App
+TODO: review the above
 
+## Lambda Apps
 
+### fileSlacker
 
-#### Packaging for deployment  
+TODO: Container Diagram
+
+### fileStatsSlacker
+
+TODO: Container Diagram
+
+## S3
+
+## Packaging for Deployment  
 Use [Lambda Layers](https://docs.aws.amazon.com/lambda/latest/dg/chapter-layers.html?icmpid=docs_lambda_help) 
 to deploy the python dependencies. The following can be used to create the zip archive to upload ...  
 ```
 $ mkdir lambda_layers
 $ cd lambda_layers
 $ mkdir python
-$ cd python
-$ pip install boto3 --platform manylinux2014_x86_64 -t . --only-binary=:all:
-$ pip install slack_bolt --platform manylinux2014_x86_64 -t . --only-binary=:all:
-$ pip install requests --platform manylinux2014_x86_64 -t . --only-binary=:all:
-$ pip install slack_sdk --platform manylinux2014_x86_64 -t . --only-binary=:all:
-$ pip install openai --platform manylinux2014_x86_64 -t . --only-binary=:all:
-$ cd ..
+$ pip install -r ../requirements.txt --platform manylinux2014_x86_64 --target ./python --only-binary=:all:
 $ zip -r python_modules.zip .
-```
-
-or maybe this from the root dir of the project ...
-    $ mkdir lambda_layers
-    $ cd lambda_layers
-    $ mkdir python
-    $ pip install -r ../requirements.txt --platform manylinux2014_x86_64 --target ./python --only-binary=:all:
-    $ zip -r python_modules.zip .
-
-Upload this dependency zip to the Lambda layers. The use of layers will keep your deployment small so inline editing
-in Lambda is still available. Pay attention to the versioning in layers ... it's rather straight-forward.
+```  
+Upload this dependency zip to the Lambda layers. The use of layers will keep your deployment small so that inline
+editing in Lambda is still available. Pay attention to the versioning in layers ... it's rather straight-forward.
 
 ## Notes
 
