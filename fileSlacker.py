@@ -39,7 +39,7 @@ def lambda_handler(event, context):
 
         if checkForInvalidEvent(event):
             # do nothing, just return success
-            logger.warning(f"invalid event: \n{str(event)}")
+            logger.warning(f"Ignoring invalid received event: \n{str(event)}")
             return {
                 'statusCode': 200,
             }
@@ -120,15 +120,14 @@ def analyzeUploadedFile(metadata, file):
         if metadata['mimetype'].startswith('image'):
             ai_analysis = analyze_image("What’s in this image?", presigned_url)
         else:
-            if not (filename.endswith(metadata['file_extension'])):
+            # attempting to add a file extension if none exists
+            if metadata['file_extension'] is not None and metadata['file_extension'] != 'None' and not (filename.endswith(metadata['file_extension'])):
                 filename = metadata['name'] + metadata['file_extension']
-            # if (filename.endswith('.csv')):
-            #    filename = metadata['name'] + '.txt'
-            # TODO: We know the file extensions that will be processed from the OpenAI docs, so we could add .txt
-            # to any mimetype starting with text and not in this list of extensions.
             ai_analysis = analyze_file("Analyze and describe the meaning behind this file.", file, filename)
     except Exception as e:
-        logger.error(f"Error while analysing file `{filename}` (slack name `{metadata['name']}`)", e)
+        logger.error(f"Error while analysing {filename} (slack name = {metadata['name']})")
+        logger.exception(e)
+        ai_analysis += f"\n_{str(e)}_"
     metadata.update({'ai_analysis': ai_analysis})
 
 
