@@ -113,18 +113,22 @@ def analyzeUploadedFile(metadata, file):
     """ First grant temporary public access to the uploaded file (via a presigned URL). Then request OpenAi to
     analyze the file. Store the result in the metadata to be persisted to S3.
     TODO: Look into improving the requests to analyze files to OpenAI """
-    presigned_url = generate_presigned_url(S3_FILE_BUCKET, metadata['s3_key'])
-    if metadata['mimetype'].startswith('image'):
-        ai_analysis = analyze_image("What’s in this image?", presigned_url)
-    else:
-        filename = metadata['name']
-        if not (filename.endswith(metadata['file_extension'])):
-            filename = metadata['name'] + metadata['file_extension']
-        if (filename.endswith('.csv')):
-            filename = metadata['name'] + '.txt'
+    ai_analysis = "The file could not be analysed."
+    try:
+        presigned_url = generate_presigned_url(S3_FILE_BUCKET, metadata['s3_key'])
+        if metadata['mimetype'].startswith('image'):
+            ai_analysis = analyze_image("What’s in this image?", presigned_url)
+        else:
+            filename = metadata['name']
+            if not (filename.endswith(metadata['file_extension'])):
+                filename = metadata['name'] + metadata['file_extension']
+            # if (filename.endswith('.csv')):
+            #    filename = metadata['name'] + '.txt'
             # TODO: We know the file extensions that will be processed from the OpenAI docs, so we could add .txt
             # to any mimetype starting with text and not in this list of extensions.
-        ai_analysis = analyze_file("Analyze and describe the meaning behind this file.", file, filename)
+            ai_analysis = analyze_file("Analyze and describe the meaning behind this file.", file, filename)
+    except Exception as e:
+        logger.error(e)
     metadata.update({'ai_analysis': ai_analysis})
 
 
