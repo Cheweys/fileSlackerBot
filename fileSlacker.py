@@ -120,14 +120,17 @@ def analyzeUploadedFile(metadata, file):
         if metadata['mimetype'].startswith('image'):
             ai_analysis = analyze_image("What’s in this image?", presigned_url)
         else:
-            # attempting to add a file extension if none exists
+            # attempting to add a file extension if the filename doesn't have one
             if metadata['file_extension'] is not None and metadata['file_extension'] != 'None' and not (filename.endswith(metadata['file_extension'])):
                 filename = metadata['name'] + metadata['file_extension']
-            ai_analysis = analyze_file("Analyze and describe the meaning behind this file.", file, filename)
+            # total hack :)
+            if filename.endswith('.xlsx') or filename.endswith('.csv'):
+                filename += '.txt'
+        ai_analysis = analyze_file("Analyze and describe the meaning behind this file.", file, filename)
     except Exception as e:
         logger.error(f"Error while analysing {filename} (slack name = {metadata['name']})")
         logger.exception(e)
-        ai_analysis += f"\n_{str(e)}_"
+        ai_analysis += f"\n```{str(e)}```"
     metadata.update({'ai_analysis': ai_analysis})
 
 
@@ -240,6 +243,13 @@ def build_slack_metadata(event):
     slack_event = json.loads(slack_json)
     slack_event_file = slack_event['event']['files'][0]
     file_extension = mimetypes.guess_extension(slack_event_file['mimetype'])
+    s3_key = slack_event_file['id']
+    if file_extension is None:
+        file_extension = mimetypes.guess_extension(slack_event_file['filetype'])
+    if file_extension is None:
+        file_extension = mimetypes.guess_extension(slack_event_file['name'])
+    if file_extension is not None:
+        s3_key += file_extension
     md = {
         'id': f'{slack_event_file['id']}',
         'created': f'{slack_event_file['created']}',
@@ -253,7 +263,7 @@ def build_slack_metadata(event):
         'size': f'{slack_event_file['size']}',
         'url_private': f'{slack_event_file['url_private']}',
         'user_text': '',
-        's3_key': f'{slack_event_file['id']}{file_extension}',
+        's3_key': f'{s3_key}',
         'slack_orig_channel': f'{slack_event['event']['channel']}',
         'slack_orig_ts': f'{slack_event['event']['ts']}',
         'ai_analysis': '_TODO_'
