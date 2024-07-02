@@ -114,12 +114,12 @@ def analyzeUploadedFile(metadata, file):
     analyze the file. Store the result in the metadata to be persisted to S3.
     TODO: Look into improving the requests to analyze files to OpenAI """
     ai_analysis = "The file could not be analysed."
+    filename = metadata['name']
     try:
         presigned_url = generate_presigned_url(S3_FILE_BUCKET, metadata['s3_key'])
         if metadata['mimetype'].startswith('image'):
             ai_analysis = analyze_image("What’s in this image?", presigned_url)
         else:
-            filename = metadata['name']
             if not (filename.endswith(metadata['file_extension'])):
                 filename = metadata['name'] + metadata['file_extension']
             # if (filename.endswith('.csv')):
@@ -128,7 +128,7 @@ def analyzeUploadedFile(metadata, file):
             # to any mimetype starting with text and not in this list of extensions.
             ai_analysis = analyze_file("Analyze and describe the meaning behind this file.", file, filename)
     except Exception as e:
-        logger.error(e)
+        logger.error(f"Error while analysing file `{filename}` (slack name `{metadata['name']}`)", e)
     metadata.update({'ai_analysis': ai_analysis})
 
 
@@ -156,7 +156,7 @@ def analyze_image(request, url):
     return str(response.choices[0].message.content)
 
 
-def analyze_file(request, working_file, filename):
+def analyze_file(request, raw_file, filename):
     """  Analyzing the content of text-like files using OpenAI."""
     assistant = open_ai.beta.assistants.create(
         name="Assistant to fileSlackerBot",
@@ -168,7 +168,7 @@ def analyze_file(request, working_file, filename):
 
     # Upload the user provided file to OpenAI
     message_file = open_ai.files.create(
-        file=(filename, working_file), purpose="assistants",
+        file=(filename, raw_file), purpose="assistants",
     )
 
     # Create a thread and attach the file to the message
@@ -227,7 +227,10 @@ def upload_metadata_to_s3(metadata):
         logging.error(f"Credentials not available\n{e}")
         raise
     except ClientError as e:
-        logging.error(f"A Client Error occurred with saving the metadata to S3\n{e}")
+        logging.error(f"A Client Error occurred with saving the `{metadata['filename']}` metadata to S3\n{e}")
+        raise
+    except Exception as e:
+        logging.error(f"An Error occurred with saving the `{metadata['filename']}` metadata to S3\n{e}")
         raise
 
 
