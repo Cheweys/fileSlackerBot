@@ -2,8 +2,31 @@
 
 ![fileSlackerBot](docs/xtra/fileSlackerBot_icon.jpg)
 
-## Overview
-A project allowing for the Slack upload of files to AWS S3 via events to AWS Lambdas.
+## Usage
+The `fileSlackerBot` is triggered by mention of the app, `@fileSlackerBot` in a Slack message. The `fileSlackerBot` 
+must be a member of the current channel, otherwise it can be added upon it's first mention in the channel.
+
+When a file is attached to a message referencing `@fileSlackerBot`, it will be ultimately uploaded to S3. A reply will
+sent back to the Slack user within the same Slack thread. This reply will contain an analysis of the file content as
+well as summarize details of all the files in S3. *Currently, `fileSlackerBot` is limited to processing only one attached
+file.* (Future feature or perhaps the application is simply living up to the _Slacker_ part of its name :laughing:)
+
+The Slack user can also add text in the message referencing `@fileSlackerBot`. This text currently will not influence the
+analysis of the file content (another future feature!).
+
+## Technology Overview
+The slack user interacts with the `fileSlackerBot` through @ mentions in Slack. The `fileSlackerBot` is a Slack
+bot application defined in the [Slack APi](https://api.slack.com/apps/). Again it's configured to be triggered
+by app_mentions events. Upon receiving one of these events, it makes an HTTP POST to the AWS API Gateway. The API 
+Gateway acts as a trigger calling the AWS Lambda `FileSlacker` function.
+
+The `FileSlacker` Lambda function creates a json object containing metadata from the received slack event. It then
+persists the attached Slack file via a private Slack URL to the `file-slacker-bucket` S3 bucket. The files in the
+`file-slacker-bucket` S3 bucket are keyed by the received Slack  A call is made to
+the OpenAI API to do content analysis of the file. Lastly, the metadata is persisted to the `file-slacker-bucket/meta`
+S3 bucket/folder. 
+
+There is a trigger defined on the S3 bucket 
 
 ![Context Diagram](docs/fileSlackerBot_context.drawio.png)
 
@@ -11,6 +34,7 @@ A project allowing for the Slack upload of files to AWS S3 via events to AWS Lam
 
 TODO: Container Diagram
 
+### Configuration
 Using  add the `fileSlackerBot` application and configure ...  
 
 1. Create a new slack app `fileSlackerBot` at [Slack APi - Apps](https://api.slack.com/apps/)
