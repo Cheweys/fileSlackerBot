@@ -126,7 +126,7 @@ def analyzeUploadedFile(metadata, file):
             # total hack :)
             if filename.endswith('.xlsx') or filename.endswith('.csv'):
                 filename += '.txt'
-        ai_analysis = analyze_file("Analyze and describe the meaning behind this file.", file, filename)
+            ai_analysis = analyze_file("Analyze and describe the meaning behind this file.", file, filename)
     except Exception as e:
         logger.error(f"Error while analysing {filename} (slack name = {metadata['name']})")
         logger.exception(e)
