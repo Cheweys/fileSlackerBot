@@ -33,6 +33,16 @@ def lambda_handler(event, context):
     TODO: This method is currently doing too much. Since it's not acknowledging a
     success within 3 seconds the Slack API is re-sending events. Should considering
     an asynchronous call/event to another Lambda so we can return a success immediately."""
+
+    # uncomment to verify the Slack Request URL from a new Slack app
+    '''
+    if slack_event['type'] == 'url_verification':
+        return {
+            'statusCode': 200,
+            'body': f'{slack_event['challenge']}'
+        }
+    '''
+
     try:
         logger.debug(f'fileSlacker.lambda_handler -- event:\n{json.dumps(event)}')
         logger.debug(f'fileSlacker.lambda_handler -- context:\n{str(context)}')
@@ -46,14 +56,12 @@ def lambda_handler(event, context):
 
         slack_metadata = build_slack_metadata(event)
 
-        # uncomment to verify the Slack Request URL from a new Slack app
-        '''
-        if slack_event['type'] == 'url_verification':
+        if checkForExistingFileInS3(slack_metadata['s3_key']):
+            # do nothing, just return success
+            logger.warning(f"Ignoring a most-likely Slack retry event. s3_key: {slack_metadata['s3_key']}")
             return {
                 'statusCode': 200,
-                'body': f'{slack_event['challenge']}'
             }
-        '''
 
         file = upload_file_to_s3(slack_metadata)
         if ENABLE_AI_ANALYSIS:
@@ -64,19 +72,27 @@ def lambda_handler(event, context):
 
 
 def checkForInvalidEvent(event):
-    """ If we have a valid Slack-originated event, check if we already have processed the file in s3.
-     This still misses the scenario of the long processing time of the first event and sometime two
-     responses will show up in the thread, especially if the ai analyzing of files is enabled. """
+    """ If we have a valid Slack-originated event by looking for the existence of body/event. This is basically
+    filtering out any events that we cannot parse. _There appears to be some noise events generated from Slack
+    possibly on the receiving of a response from fileSlackerBot, but this is not known for certain. """
     slack_json = event['body']
     slack_event = json.loads(slack_json)
-    if 'files' in slack_event['event']:
-        # check for existence of file in s3
-        results = s3.list_objects(Bucket=S3_FILE_BUCKET,
-                                  Prefix=f'{S3_METADATA_FOLDER}/{slack_event['event']['files'][0]['id']}.json')
-        # if Contents exist, then the file exists in s3
-        return 'Contents' in results
-    else:
-        return False
+    return 'files' not in slack_event['event']
+
+
+def checkForExistingFileInS3(file_s3_key):
+    results = s3.list_objects(Bucket=S3_FILE_BUCKET,
+                              Prefix=file_s3_key)
+    # if 'Contents' exist, then the file exists in s3
+    logger.info(f"File Exists: {'Contents' in results}")
+    return 'Contents' in results
+
+def checkForExistingMetadataInS3(meta_s3_key):
+    results = s3.list_objects(Bucket=S3_FILE_BUCKET,
+                              Prefix=meta_s3_key)
+    # if 'Contents' exist, then the file exists in s3
+    logger.info(f"Metadata Exists: {'Contents' in results}")
+    return 'Contents' in results
 
 
 def upload_file_to_s3(metadata):
@@ -219,12 +235,15 @@ def upload_metadata_to_s3(metadata):
     logger.debug(f"fileSlacker.upload_metadata_to_s3 -- metadata: {json.dumps(metadata)}")
     try:
         metadata_json = json.dumps(metadata)
-        response = s3.put_object(
-            Body=metadata_json,
-            Bucket=S3_FILE_BUCKET,
-            Key=f'{S3_METADATA_FOLDER}/{metadata['id']}.json',
-            ContentType='application/json'
-        )
+        metadata_s3_key = f"{S3_METADATA_FOLDER}/{metadata['s3_key']}-metadata.json"
+        # last chance check to see if metadata already exists - TODO: fix the architecture instead!
+        if not checkForExistingMetadataInS3(metadata_s3_key):
+            response = s3.put_object(
+                Body=metadata_json,
+                Bucket=S3_FILE_BUCKET,
+                Key=metadata_s3_key,
+                ContentType='application/json'
+            )
     except NoCredentialsError as e:
         logging.error(f"Credentials not available\n{e}")
         raise
@@ -242,14 +261,12 @@ def build_slack_metadata(event):
     logger.debug(f"SLACK JSON:\n{slack_json}")
     slack_event = json.loads(slack_json)
     slack_event_file = slack_event['event']['files'][0]
+    s3_key = f"{slack_event_file['id']}-{slack_event_file['name']}"
     file_extension = mimetypes.guess_extension(slack_event_file['mimetype'])
-    s3_key = slack_event_file['id']
     if file_extension is None:
         file_extension = mimetypes.guess_extension(slack_event_file['filetype'])
     if file_extension is None:
         file_extension = mimetypes.guess_extension(slack_event_file['name'])
-    if file_extension is not None:
-        s3_key += file_extension
     md = {
         'id': f'{slack_event_file['id']}',
         'created': f'{slack_event_file['created']}',

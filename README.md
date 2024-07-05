@@ -30,27 +30,6 @@ There is a trigger defined on the S3 bucket
 
 ![Context Diagram](docs/fileSlackerBot_context.drawio.png)
 
-## Slack API App
-
-TODO: Container Diagram
-
-### Configuration
-Using  add the `fileSlackerBot` application and configure ...  
-
-1. Create a new slack app `fileSlackerBot` at [Slack APi - Apps](https://api.slack.com/apps/)
-    - from scratch
-2. "OAuth & Permissions"
-    - Bot Token Scopes
-        - app_mentions:read
-        - chat:write
-        - remote_files:read **?**
-    - Install to Workspace
-3. Enable "Event Subscriptions"
-    - "Subscribe to Bot Events"
-        - Add "app_mention" Bot User Event
-
-TODO: review the above
-
 ## Lambda Apps
 
 ### fileSlacker
